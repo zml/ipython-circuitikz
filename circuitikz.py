@@ -2,7 +2,8 @@
 An IPython extension for generating circuit diagrams using LaTeX/Circuitikz
 from within ipython notebook.
 """
-import os
+import os,sys,subprocess
+import re
 from IPython.core.magic import magics_class, cell_magic, Magics
 from IPython.display import Image, SVG
 
@@ -37,9 +38,9 @@ class Circuitikz(Magics):
                    'dpi': '100',
                    'format': 'png',
                    'options': 'europeanresistors,americaninductors'}
-
-
-        for option in line.split(" "):
+        
+        args = re.sub(r"[\t\s]*=[\t\s]*","=",line).split()
+        for option in args:
             try:
                 key, value = option.split("=")
                 if key in options:
@@ -60,26 +61,24 @@ class Circuitikz(Magics):
 
         with open(filename + ".tex", "w") as file:
             file.write(latex_template % (options['options'], cell))
-    
-        os.system("pdflatex -interaction batchmode %s.tex" % filename)
-        for ext in ["aux", "log"]:
-            try:
+        
+        try:
+            subprocess.call(("pdflatex -interaction batchmode %s.tex" % filename).split())
+            for ext in ["aux", "log"]:
                 os.remove("%s.%s" % (filename, ext))
-            except:
-                pass
 
-        os.system("pdfcrop %s.pdf %s-tmp.pdf" % (filename, filename))
-        os.rename("%s-tmp.pdf" % filename, "%s.pdf" % filename)
-
-        if options['format'] == 'png':
-            os.system("convert -density %s %s.pdf %s.png" % (options['dpi'], filename, filename))
-            result = Image(filename=filename + ".png")
-        else:
-            os.system("pdf2svg %s.pdf %s.svg" % (filename, filename))
-            result = SVG(filename + ".svg")
-
-        return result
-
+            subprocess.call(("pdfcrop %s.pdf %s-tmp.pdf" % (filename, filename)).split())
+            os.rename("%s-tmp.pdf" % filename, "%s.pdf" % filename)
+    
+            if options['format'] == 'png':
+                subprocess.call(("convert -density %s %s.pdf %s.png" % (options['dpi'], filename, filename)).split())
+                result = Image(filename=filename + ".png")
+            else:
+                subprocess.call(("pdf2svg %s.pdf %s.svg" % (filename, filename)).split())
+                result = SVG(filename + ".svg")
+            return result
+        except OSError as e:
+            print("Execution failed:", e, file=sys.stderr)
 
 def load_ipython_extension(ipython):
     ipython.register_magics(Circuitikz)
